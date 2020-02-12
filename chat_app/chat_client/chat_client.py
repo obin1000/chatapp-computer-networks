@@ -1,4 +1,5 @@
 # Import the socket library.
+import os
 import socket
 import threading
 import configparser
@@ -10,6 +11,9 @@ class ChatClient:
     MAX_MSG_LENGTH = 10
     RECEIVE_SIZE = 2048
     RECEIVE_INTERVAL = 0.1
+    SEND_INTERVAL = 0.5
+    BAD_RESPONSE = [protocol.UNKNOWN, protocol.IN_USE, protocol.BUSY, protocol.BAD_RQST_HDR, protocol.BAD_RQST_BODY]
+    GOOD_RESPONSE = [protocol.HELLO, protocol.WHO_OK, protocol.SEND_OK, protocol.DELIVERY]
 
     def __init__(self, server_address, port):
         """
@@ -22,6 +26,9 @@ class ChatClient:
         self.socket = None
         # Queue for message to send to the server
         self.send_queue = []
+        self.sending = False
+        self.sending_thread = None
+
         # Thread that polls for new messages
         self.polling_thread = None
         # Indicates if the client should be polling
@@ -32,27 +39,29 @@ class ChatClient:
         Create the socket connection between this client en given server in the constructor.
         :param socket_family: Protocol to be used by sockets, defaults to INET (IP).
         :param socket_type: Packaging  type to be used by sockets, defaults to STREAM.
-        :return: None
+        :return: True if connection was successful, else false.
         """
-        # Create a new socket.
-        self.socket = socket.socket(socket_family, socket_type)
-        # Connect to another application.
-        self.socket.connect((self.server_address, self.port))
+        try:
+            # Create a new socket.
+            self.socket = socket.socket(socket_family, socket_type)
+            # Connect to another application.
+            self.socket.connect((self.server_address, self.port))
+            return True
+        except:
+            print('Failed connecting to {}:{}'.format(self.server_address, self.port))
+            return False
 
     def do_handshake(self, username):
         """
         Do the handshake provided from our protocol
         :param username: Name of the user to represent yourself at the server.
-        :return: True if successful, False if failed.
+        :return: Tuple. True if successful, False if failed. Followed by reason string.
         """
         buffer = str.encode("{} {}{}".format(protocol.HELLO_FROM, username, protocol.MESSAGE_END))
         num_bytes_sent = self.socket.sendall(buffer)
         response = self.socket.recv(self.RECEIVE_SIZE)
-
-        if protocol.IN_USE in response.decode():
-            return False, protocol.IN_USE
-        else:
-            return True, 'Success'
+        decoded = response.decode()
+        return self._check_response(decoded)
 
     def start_polling(self):
         """
@@ -62,6 +71,8 @@ class ChatClient:
         if self.polling_thread is None:
             self.polling_thread = threading.Thread(target=self._poll)
             self.polling_thread.start()
+        else:
+            print('Polling already active!')
 
     def stop_polling(self):
         """
@@ -72,56 +83,124 @@ class ChatClient:
 
     def _poll(self):
         """
-        Poll for incoming messages
+        Poll for incoming messages.
         :return:
         """
+        message = ''
         self.polling = True
         while self.polling:
             received = self.socket.recv(self.RECEIVE_SIZE)
-            self._check_response(received.decode())
+            message += received.decode()
+
+            # For messages lager than the buffer, search for the message end.
+            if protocol.MESSAGE_END not in message:
+                continue
+
+            # Only report bad responses and deliveries to the user
+            good, reason = self._check_response(message)
+            if not good:
+                print('Bad response: ' + reason)
+            elif protocol.DELIVERY in message:
+                user, msg = message.replace(protocol.DELIVERY, '', 1).replace(' ', '', 1).split(' ', 1)
+                print('{}: {}'.format(user, msg))
+            elif protocol.WHO_OK in message:
+                users = message.replace(protocol.WHO_OK, '', 1).replace(' ', '', 1)
+                print('{}'.format(users))
+
+            message = ''
             sleep(self.RECEIVE_INTERVAL)
 
     def _check_response(self, message):
         """
         Check a received message from the server.
         :param message: The message to be checked.
-        :return: None
+        :return: Tuple. True if successful, False if failed. Followed by reason string.
         """
-        if protocol.DELIVERY in message:
-            user, msg = message.replace(protocol.DELIVERY, '', 1).replace(' ', '', 1).split(' ', 1)
-            print('{}: {}'.format(user, msg))
+        if message is None:
+            return False
         else:
-            print(message)
+            for good in self.GOOD_RESPONSE:
+                if good in message:
+                    return True, good
+
+            for bad in self.BAD_RESPONSE:
+                if bad in message:
+                    return False, bad
 
     def get_users(self):
         """
         Get current only users.
         :return: A string listing all online users.
         """
-        # Encode string to bytes
-        buffer = str.encode(protocol.WHO + protocol.MESSAGE_END)
-        num_bytes_sent = self.socket.sendall(buffer)
+        buffer = '{}{}'.format(protocol.WHO, protocol.MESSAGE_END)
+        self.send(buffer)
 
-    def send_direct(self, user, message):
+    def start_sending(self):
+        """
+
+        :return:
+        """
+        if self.sending_thread is None:
+            self.sending_thread = threading.Thread(target=self._sending)
+            self.sending_thread.start()
+        else:
+            print('Sending already active!')
+
+    def stop_sending(self):
+        """
+
+        :return:
+        """
+        self.sending = False
+
+    def _sending(self):
+        """
+
+        :return:
+        """
+        self.sending = True
+        while self.sending:
+            if self.send_queue:
+                message = self.send_queue.pop(0)
+                # Encode string to bytes and send
+                self.socket.sendall(str.encode(message))
+
+            sleep(self.SEND_INTERVAL)
+
+    def send(self, message):
+        """
+        Add message to send queue
+        :return:
+        """
+        self.send_queue.append(message)
+
+    def send_message(self, user, message):
         """
         Send a message to another user.
         :param user: The user to send the message to.
         :param message: The message to send
         :return: None
         """
-        buffer = str.encode("{} {} {}{}".format(protocol.SEND, user, message, protocol.MESSAGE_END))
-        num_bytes_sent = self.socket.sendall(buffer)
+        buffer = "{} {} {}{}".format(protocol.SEND, user, message, protocol.MESSAGE_END)
+        self.send(buffer)
+
+    def stop(self):
+        """
+        Stops
+        :return:
+        """
+        self.__del__()
 
     def __del__(self):
         """
-        Cleanup after destroying this object.
+        Cleanup after destroying this object. Close connection.
         :return: None
         """
-        # Close connection.
         self.socket.close()
-        if self.polling_thread is not None:
-            self.polling = False
+        self.polling = False
+        if self.polling_thread:
             self.polling_thread = None
+        os._exit(0)
 
 
 if __name__ == '__main__':

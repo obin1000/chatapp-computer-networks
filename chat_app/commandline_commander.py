@@ -1,4 +1,5 @@
 import configparser
+from time import sleep
 from getpass import getpass
 
 import protocol
@@ -25,7 +26,9 @@ class CommandlineCommander:
         successful = False
         while not successful:
             # Server breaks connection after bad handshake
-            self.chat_client.create_connection()
+            if not self.chat_client.create_connection():
+                sleep(0.5)
+                continue
 
             self.username = input('Username: ')
 
@@ -36,10 +39,11 @@ class CommandlineCommander:
             successful, reason = self.chat_client.do_handshake(self.username)
             print('Username was {}: {}'.format(successful, reason))
 
-        self.password = getpass()
-        print("TODO: Hash password: {} \n".format(self.password))
+        # self.password = getpass()
+        # print("TODO: Hash password: {} \n".format(self.password))
 
         self.chat_client.start_polling()
+        self.chat_client.start_sending()
 
         print("Ready to accept commands: \n")
         while True:
@@ -49,8 +53,8 @@ class CommandlineCommander:
     def _check_username(self, username):
         """
         Checks if given username is valid.
-        :param username:
-        :return: True if given username is valid, else False
+        :param username: Username to check.
+        :return: True if given username is valid, else False.
         """
         # Username cannot contain spaces
         if ' ' in username:
@@ -66,16 +70,24 @@ class CommandlineCommander:
         """
         if protocol.COMMAND_QUIT in command:
             print('Thanks for using, bye!')
+            self.__del__()
             exit(0)
         elif command.startswith(protocol.COMMAND_WHO):
             print('All online users: \n')
-            print(self.chat_client.get_users())
+            self.chat_client.get_users()
         elif command.startswith(protocol.COMMAND_MSG):
             # Remove the @ from the command and separate the username from the message
             user, message = command.replace('@', '', 1).split(' ', 1)
-            self.chat_client.send_direct(user, message)
+            self.chat_client.send_message(user, message)
         else:
             print('Error: Command unknown')
+
+    def __del__(self):
+        """
+        Cleanup
+        :return: None
+        """
+        self.chat_client.stop()
 
 
 if __name__ == '__main__':
