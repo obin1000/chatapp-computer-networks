@@ -20,74 +20,108 @@ class ChatClient:
         self.server_address = server_address
         self.port = int(port)
         self.socket = None
-        self.username = 'Loser'
         # Queue for message to send to the server
         self.send_queue = []
-        self.listen_thread = None
-
-    def set_username(self, username):
-        self.username = username
+        # Thread that polls for new messages
+        self.polling_thread = None
+        # Indicates if the client should be polling
+        self.polling = False
 
     def create_connection(self, socket_family=socket.AF_INET, socket_type=socket.SOCK_STREAM):
+        """
+        Create the socket connection between this client en given server in the constructor.
+        :param socket_family: Protocol to be used by sockets, defaults to INET (IP).
+        :param socket_type: Packaging  type to be used by sockets, defaults to STREAM.
+        :return: None
+        """
         # Create a new socket.
         self.socket = socket.socket(socket_family, socket_type)
         # Connect to another application.
         self.socket.connect((self.server_address, self.port))
-        self._handshake()
-        self._start_listening()
 
-    def _handshake(self):
-        buffer = str.encode("{} {}{}".format(protocol.HELLO_FROM, self.username, protocol.MESSAGE_END))
+    def do_handshake(self, username):
+        """
+        Do the handshake provided from our protocol
+        :param username: Name of the user to represent yourself at the server.
+        :return: True if successful, False if failed.
+        """
+        buffer = str.encode("{} {}{}".format(protocol.HELLO_FROM, username, protocol.MESSAGE_END))
         num_bytes_sent = self.socket.sendall(buffer)
+        response = self.socket.recv(self.RECEIVE_SIZE)
 
-    def _start_listening(self):
-        if self.listen_thread is None:
-            self.listen_thread = threading.Thread(target=self._listener)
-            self.listen_thread.start()
+        if protocol.IN_USE in response.decode():
+            return False, protocol.IN_USE
+        else:
+            return True, 'Success'
 
-    def _listener(self):
-        while True:
+    def start_polling(self):
+        """
+        Creates a thread to start polling form incoming messages. Only 1 can be active at a time
+        :return:
+        """
+        if self.polling_thread is None:
+            self.polling_thread = threading.Thread(target=self._poll)
+            self.polling_thread.start()
+
+    def stop_polling(self):
+        """
+        Stops the polling thread if it is polling.
+        :return: None
+        """
+        self.polling = False
+
+    def _poll(self):
+        """
+        Poll for incoming messages
+        :return:
+        """
+        self.polling = True
+        while self.polling:
             received = self.socket.recv(self.RECEIVE_SIZE)
-            print(received)
+            self._check_response(received.decode())
             sleep(self.RECEIVE_INTERVAL)
 
+    def _check_response(self, message):
+        """
+        Check a received message from the server.
+        :param message: The message to be checked.
+        :return: None
+        """
+        if protocol.DELIVERY in message:
+            user, msg = message.replace(protocol.DELIVERY, '', 1).replace(' ', '', 1).split(' ', 1)
+            print('{}: {}'.format(user, msg))
+        else:
+            print(message)
+
     def get_users(self):
+        """
+        Get current only users.
+        :return: A string listing all online users.
+        """
         # Encode string to bytes
         buffer = str.encode(protocol.WHO + protocol.MESSAGE_END)
         num_bytes_sent = self.socket.sendall(buffer)
 
-    def start_sync(self):
-        """
-        Start syncing this client with the server.
-        :return:
-        """
-        buffer = self.send_queue.pop(0)
-        num_bytes_sent = self.socket.sendall(buffer)
-
-    def check_response(self, response):
-        pass
-
-    def send(self, user, message):
-        """
-        Add a message to the send queue.
-        :param buffer:
-        :return:
-        """
-        self.send_queue.append(message)
-
     def send_direct(self, user, message):
         """
-
-        :param buffer:
-        :return:
+        Send a message to another user.
+        :param user: The user to send the message to.
+        :param message: The message to send
+        :return: None
         """
         buffer = str.encode("{} {} {}{}".format(protocol.SEND, user, message, protocol.MESSAGE_END))
         num_bytes_sent = self.socket.sendall(buffer)
 
     def __del__(self):
+        """
+        Cleanup after destroying this object.
+        :return: None
+        """
         # Close connection.
         self.socket.close()
-        self.listen_thread = None
+        if self.polling_thread is not None:
+            self.polling = False
+            self.polling_thread = None
 
 
 if __name__ == '__main__':
