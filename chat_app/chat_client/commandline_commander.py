@@ -21,7 +21,7 @@ class CommandlineCommander:
         Setup a chat client and grab user input.
         :return: None
         """
-        print('Welcome to the chat\nInput username and password please: \n')
+        print('Input username and password please: \n')
         # Loop until a good username is found
         successful = False
         while not successful:

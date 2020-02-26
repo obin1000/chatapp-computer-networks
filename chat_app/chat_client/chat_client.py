@@ -9,11 +9,9 @@ from time import sleep
 
 class ChatClient:
     MAX_MSG_LENGTH = 10
-    RECEIVE_SIZE = 2048
+    RECEIVE_SIZE = 1024
     RECEIVE_INTERVAL = 0.1
     SEND_INTERVAL = 0.5
-    BAD_RESPONSE = [protocol.UNKNOWN, protocol.IN_USE, protocol.BUSY, protocol.BAD_RQST_HDR, protocol.BAD_RQST_BODY]
-    GOOD_RESPONSE = [protocol.HELLO, protocol.WHO_OK, protocol.SEND_OK, protocol.DELIVERY]
 
     def __init__(self, server_address, port):
         """
@@ -119,11 +117,11 @@ class ChatClient:
         if message is None:
             return False
         else:
-            for good in self.GOOD_RESPONSE:
+            for good in protocol.GOOD_RESPONSE:
                 if good in message:
                     return True, good
 
-            for bad in self.BAD_RESPONSE:
+            for bad in protocol.BAD_RESPONSE:
                 if bad in message:
                     return False, bad
 
@@ -206,4 +204,4 @@ class ChatClient:
 if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('../../server_info.ini')
-    client1 = ChatClient(config['vu']['ip'], config['vu']['port'])
+    client1 = ChatClient(config['DEFAULT']['ip'], config['DEFAULT']['port'])
