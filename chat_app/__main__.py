@@ -12,8 +12,8 @@ for arg in sys.argv:
     if 'chat_app' in arg:
         print('Welcome to the chat')
     elif '--server' in arg:
-        server = ChatServer(config['vu']['ip'], config['vu']['port'])
+        server = ChatServer(config['DEFAULT']['ip'], config['DEFAULT']['port'])
     elif '--client' in arg:
-        commandline = CommandlineCommander(config['vu']['ip'], config['vu']['port'])
+        commandline = CommandlineCommander(config['DEFAULT']['ip'], config['DEFAULT']['port'])
     else:
         print('Could not understand argument {}'.format(arg))
