@@ -7,6 +7,7 @@ from chat_client.chat_client import ChatClient
 
 
 class CommandlineCommander:
+    SOCKET_CREATE_INTERVAL = 0.5
     def __init__(self, server_address, port):
         """
         Creates a chat client and starts a commandline session.
@@ -27,7 +28,7 @@ class CommandlineCommander:
         while not successful:
             # Server breaks connection after bad handshake
             if not self.chat_client.create_connection():
-                sleep(0.5)
+                sleep(self.SOCKET_CREATE_INTERVAL)
                 continue
 
             self.username = input('Username: ')

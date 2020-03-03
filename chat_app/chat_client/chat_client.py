@@ -116,14 +116,14 @@ class ChatClient:
         """
         if message is None:
             return False
-        else:
-            for good in protocol.GOOD_RESPONSE:
-                if good in message:
-                    return True, good
 
-            for bad in protocol.BAD_RESPONSE:
-                if bad in message:
-                    return False, bad
+        for good in protocol.GOOD_RESPONSE:
+            if message.startswith(good):
+                return True, good
+
+        for bad in protocol.BAD_RESPONSE:
+            if message.startswith(bad):
+                return False, bad
 
     def get_users(self):
         """
