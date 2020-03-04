@@ -13,6 +13,8 @@ class ServerClient:
         self.address = address
         self.username = username
 
+        self.done_handshake = False
+
         self.poll_thread = None
         # Variable to stop the poll threads
         self.alive = True
@@ -20,6 +22,12 @@ class ServerClient:
         self.inbox = []
 
         self.start_polling()
+
+    def get_handshake_done(self):
+        return self.done_handshake
+
+    def handshake_done(self):
+        self.done_handshake = True
 
     def is_alive(self):
         return self.alive

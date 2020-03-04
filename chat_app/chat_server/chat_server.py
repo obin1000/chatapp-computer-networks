@@ -107,10 +107,11 @@ class ChatServer:
         return None
 
     def handle_request(self, request, client):
-        if request.startswith(protocol.HELLO_FROM):
+        if request.startswith(protocol.HELLO_FROM) and not client.get_handshake_done():
             username = request.replace(protocol.MESSAGE_END, '').split(' ')[1]
             if self.check_username(username):
                 client.set_username(username)
+                client.handshake_done()
                 client.send('{} {}{}'.format(protocol.HELLO, username, protocol.MESSAGE_END))
             else:
                 client.send('{}{}'.format(protocol.IN_USE, protocol.MESSAGE_END))
