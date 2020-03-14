@@ -45,8 +45,8 @@ class ChatClient:
             # Connect to another application.
             self.socket.connect((self.server_address, self.port))
             return True
-        except:
-            print('Failed connecting to {}:{}'.format(self.server_address, self.port))
+        except Exception as e:
+            print('Failed connecting to {}:{} reason: {}'.format(self.server_address, self.port, e))
             return False
 
     def do_handshake(self, username):
@@ -55,11 +55,8 @@ class ChatClient:
         :param username: Name of the user to represent yourself at the server.
         :return: Tuple. True if successful, False if failed. Followed by reason string.
         """
-        buffer = str.encode("{} {}{}".format(protocol.HELLO_FROM, username, protocol.MESSAGE_END))
-        num_bytes_sent = self.socket.sendall(buffer)
-        response = self.socket.recv(self.RECEIVE_SIZE)
-        decoded = response.decode()
-        return self._check_response(decoded)
+        buffer = "{} {}{}".format(protocol.HELLO_FROM, username, protocol.MESSAGE_END)
+        self.send(buffer)
 
     def start_polling(self):
         """
@@ -98,10 +95,14 @@ class ChatClient:
             good, reason = self._check_response(message)
             if not good:
                 print('Bad response: ' + reason)
-            elif protocol.DELIVERY in message:
+            elif message.startswith(protocol.HELLO):
+                print('Handshake was successful')
+            elif message.startswith(protocol.IN_USE):
+                print('Username already in use')
+            elif message.startswith(protocol.DELIVERY):
                 user, msg = message.replace(protocol.DELIVERY, '', 1).replace(' ', '', 1).split(' ', 1)
                 print('{}: {}'.format(user, msg))
-            elif protocol.WHO_OK in message:
+            elif message.startswith(protocol.WHO_OK):
                 users = message.replace(protocol.WHO_OK, '', 1).replace(' ', '', 1)
                 print('{}'.format(users))
 

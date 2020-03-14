@@ -4,17 +4,27 @@ from getpass import getpass
 
 import protocol
 from chat_client.chat_client import ChatClient
+from chat_client.udp_chat_client import UDPChatClient
 
 
 class CommandlineCommander:
     SOCKET_CREATE_INTERVAL = 0.5
-    def __init__(self, server_address, port):
+    CLIENT_UDP = 2
+    CLIENT_TCP = 1
+
+    def __init__(self, server_address, port, client_type=CLIENT_TCP):
         """
         Creates a chat client and starts a commandline session.
         """
         self.username = None
         self.password = None
-        self.chat_client = ChatClient(server_address, port)
+        if client_type is self.CLIENT_TCP:
+            self.chat_client = ChatClient(server_address, port)
+
+        elif client_type is self.CLIENT_UDP:
+            self.chat_client = UDPChatClient(server_address, port)
+        else:
+            print('Client got invalid client type: {}. Cannot continue'.format(client_type))
         self._start_session()
 
     def _start_session(self):
@@ -23,6 +33,10 @@ class CommandlineCommander:
         :return: None
         """
         print('Input username and password please: \n')
+
+        self.chat_client.start_polling()
+        self.chat_client.start_sending()
+
         # Loop until a good username is found
         successful = False
         while not successful:
@@ -37,14 +51,10 @@ class CommandlineCommander:
                 print('Username {} is invalid'.format(self.username))
                 continue
 
-            successful, reason = self.chat_client.do_handshake(self.username)
-            print('Username was {}: {}'.format(successful, reason))
+            self.chat_client.do_handshake(self.username)
 
         # self.password = getpass()
         # print("TODO: Hash password: {} \n".format(self.password))
-
-        self.chat_client.start_polling()
-        self.chat_client.start_sending()
 
         print("Ready to accept commands: \n")
         while True:
@@ -94,4 +104,4 @@ class CommandlineCommander:
 if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read('../server_info.ini')
-    commands = CommandlineCommander(config['vu']['ip'], config['vu']['port'])
+    commands = CommandlineCommander(config['DEFAULT']['ip'], config['DEFAULT']['port'])

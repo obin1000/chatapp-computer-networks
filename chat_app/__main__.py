@@ -15,5 +15,10 @@ for arg in sys.argv:
         server = ChatServer(config['DEFAULT']['ip'], config['DEFAULT']['port'])
     elif '--client' in arg:
         commandline = CommandlineCommander(config['DEFAULT']['ip'], config['DEFAULT']['port'])
+    elif '--udp-client' in arg:
+        server = CommandlineCommander(config['DEFAULT']['ip'], config['DEFAULT']['port'],
+                                      CommandlineCommander.CLIENT_UDP)
+    elif '--udp-server' in arg:
+        pass
     else:
         print('Could not understand argument {}'.format(arg))
